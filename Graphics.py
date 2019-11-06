@@ -2,6 +2,7 @@ import pyglet
 import math
 import numpy as np
 from pyglet.gl import *
+import time
 
 # A library used to create a virtual environment for experiments
 
@@ -20,10 +21,11 @@ class Environment:
     def on_draw(self):
         glClearColor(1, 1, 1, 1)
         self.window.clear()
-        for object_list in self.object_lists:
-            batch = pyglet.graphics.Batch()
+        batch = pyglet.graphics.Batch()
+        for object_list in self.object_lists[:len(self.object_lists) - 1]:
             Objects.translate(object_list, batch)
-            batch.draw()
+        batch.draw()
+        Objects.translate(self.object_lists[len(self.object_lists) - 1], batch)  # Last object list is text
 
     @staticmethod
     def run():
@@ -31,57 +33,53 @@ class Environment:
 
 
 class Objects:
-    colors = ['Black', 'Grey']
-    fob = []
-    fob_picker = {}
-    j = 0
-    for color in colors:
-        fob.append(pyglet.image.load('Fob/{}/Fob.png'.format(color)))
-        fob_picker[color] = fob[j]
-        j += 1
 
-    bars = [[], []]
-    for i in range(2):
-        for j in range(10):
-            bars[i].append(pyglet.image.load('Fob/Bar{}/{}.png'.format(i + 1, j)))
+    fob_cords = np.loadtxt('./Fob/Fob.txt')
+    bar_cords = np.loadtxt('./Fob/Bars.txt')
 
     class Fob:
         @staticmethod   # Sprites are unable to be added to the batch object
-        def draw(batch_unused, x, y, rotation=0, col='Black', stat1=0., stat2=0.):
-            batch = pyglet.graphics.Batch()
-            layer_0 = pyglet.graphics.OrderedGroup(0)
-            layer_1 = pyglet.graphics.OrderedGroup(1)
+        def draw(batch, x, y, rotation=0, col=(50, 50, 50), stat1=0., stat2=0.):
+            size = 10
+            rotation_radians = rotation * math.pi / 180
+            c = math.cos(rotation_radians)
+            s = math.sin(rotation_radians)
+            rot = np.array([[c, s], [-s, c]])
+            cords = np.matmul(rot, Objects.fob_cords.transpose()).transpose() * size
+            cords = (cords + np.array([x, y])[None, :]).flatten()
 
-            sprites = [pyglet.sprite.Sprite(Objects.fob_picker[col], x, y, batch=batch, group=layer_0),
-                       pyglet.sprite.Sprite(Objects.bars[0][int(9.9 * stat1)], x, y, batch=batch, group=layer_1),
-                       pyglet.sprite.Sprite(Objects.bars[1][int(9.9 * stat2)], x, y, batch=batch, group=layer_1)]
+            num_cords = int(cords.size / 2)
+            batch.add(num_cords, GL_TRIANGLES, None, ('v2f', cords), ('c3B', (0, 0, 0) * int(num_cords / 2) +
+                                                                      col * int(num_cords / 2)))
 
-            for sprite in sprites:
-                sprite.image.anchor_x = sprites[1].image.width / 2
-                sprite.image.anchor_y = sprites[1].image.height / 3
-
-            sprites[0].rotation = rotation
-            sprites[1].rotation = 0
-            batch.draw()
+            bar_cords = Objects.bar_cords * size
+            bar_cords[18:20, 0] += stat1 * (4 - 2 * (Objects.bar_cords[4, 0] - Objects.bar_cords[0, 0])) * size
+            bar_cords[14:16, 0] += stat2 * (4 - 2 * (Objects.bar_cords[4, 0] - Objects.bar_cords[0, 0])) * size
+            bar_cords = (bar_cords + np.array([x, y])[None, :]).flatten()
+            batch.add(20, GL_QUADS, None, ('v2f', bar_cords), ('c3B', (0, 0, 0) * 4 + (255, 255, 255) * 8 +
+                                                               (50, 50, 50) * 4 + (255, 0, 0) * 4))
 
     class FobWithVision:
         @staticmethod   # Sprites are unable to be added to the batch object
-        def draw(batch, vision_bins, vision_hist, x, y, rotation=0, col='Black', stat1=0., stat2=0., vision_len=50.):
-            batch_sprites = pyglet.graphics.Batch()
-            layer_0 = pyglet.graphics.OrderedGroup(0)
-            layer_1 = pyglet.graphics.OrderedGroup(1)
+        def draw(batch, vision_bins, vision_hist, x, y, rotation=0, col=(50, 50, 50), stat1=0., stat2=0.,
+                 vision_len=50.):
+            size = 10
+            rotation_radians = rotation * math.pi / 180
+            c = math.cos(rotation_radians)
+            s = math.sin(rotation_radians)
+            rot = np.array([[c, s], [-s, c]])
+            cords = np.matmul(rot, Objects.fob_cords.transpose()).transpose() * size
+            cords = (cords + np.array([x, y])[None, :]).flatten()
 
-            sprites = [pyglet.sprite.Sprite(Objects.fob_picker[col], x, y, batch=batch_sprites, group=layer_0),
-                       pyglet.sprite.Sprite(Objects.bars[0][int(9.9 * stat1)], x, y, batch=batch_sprites, group=layer_1),
-                       pyglet.sprite.Sprite(Objects.bars[1][int(9.9 * stat2)], x, y, batch=batch_sprites, group=layer_1)]
+            num_cords = int(cords.size / 2)
+            batch.add(num_cords, GL_TRIANGLES, None, ('v2f', cords), ('c3B', (0, 0, 0) * num_cords))
 
-            for sprite in sprites:
-                sprite.image.anchor_x = sprites[1].image.width / 2
-                sprite.image.anchor_y = sprites[1].image.height / 3
-
-            sprites[0].rotation = rotation
-            sprites[1].rotation = 0
-            batch_sprites.draw()
+            bar_cords = Objects.bar_cords * size
+            bar_cords[18:20, 0] += stat1 * (4 - 2 * (Objects.bar_cords[4, 0] - Objects.bar_cords[0, 0])) * size
+            bar_cords[14:16, 0] += stat2 * (4 - 2 * (Objects.bar_cords[4, 0] - Objects.bar_cords[0, 0])) * size
+            bar_cords = (bar_cords + np.array([x, y])[None, :]).flatten()
+            batch.add(20, GL_QUADS, None, ('v2f', bar_cords), ('c3B', (0, 0, 0) * 4 + (255, 255, 255) * 8 +
+                                                               (50, 50, 50) * 4 + (255, 0, 0) * 4))
 
             xy2 = np.empty((len(vision_bins), 2), dtype=np.float32)
             xy2[:, 0] = vision_len * np.sin(vision_bins + rotation * np.pi / 180.)
@@ -92,9 +90,9 @@ class Objects:
 
             for i in range(len(vision_bins)):
                 Objects.Line.draw(batch, x, y, *xy2[i, :].tolist())
-
-            for i in range(len(vision_hist)):
-                Objects.Text.draw(batch, *xy3[i, :].tolist(), '{}'.format(int(vision_hist[i])))
+            
+            # for i in range(len(vision_hist)):
+            #     Objects.Text.draw(batch, *xy3[i, :].tolist(), '{}'.format(int(vision_hist[i])))
 
     class Rectangle:
         @staticmethod

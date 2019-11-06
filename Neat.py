@@ -31,7 +31,7 @@ class Genome:
 
         # Adding the input nodes to the nodes list
         for i in range(self.nodes[0][0]):
-            nodes.append(tf.Variable(input_nodes[i], dtype=tf.float32, name='node_{}'.format(self.nodes[1][i])))
+            nodes.append(input_nodes[i])
             node_num_map[self.nodes[1][i]] = i
 
         calculated = [False] * self.nodes[0][2]
@@ -54,9 +54,9 @@ class Genome:
                     if connected_nodes[0].size != 0:
                         connected_nodes[0] = np.vectorize(node_num_map.get)(connected_nodes[0])
 
-                    nodes.append(tf.Variable(tf.sigmoid(tf.reduce_sum(
+                    nodes.append(tf.math.tanh(tf.reduce_sum(
                         tf.multiply(tf.constant(connected_nodes[1], dtype=tf.float32),
-                                    tf.stack([nodes[j] for j in connected_nodes[0]])))), name='node_{}'.format(node)))
+                                    tf.stack([nodes[j] for j in connected_nodes[0]])))))
 
                     node_num_map[node] = len(node_num_map)
 
@@ -68,15 +68,11 @@ class Genome:
             if connected_nodes[0].size != 0:
                 connected_nodes[0] = np.vectorize(node_num_map.get)(connected_nodes[0])
 
-            nodes.append(tf.Variable(tf.math.tanh(tf.reduce_sum(
+            nodes.append(tf.math.tanh(tf.reduce_sum(
                 tf.multiply(tf.constant(connected_nodes[1], dtype=tf.float32),
-                            tf.stack([nodes[j] for j in connected_nodes[0]])))), name='node_{}'.format(node)))
+                            tf.stack([nodes[j] for j in connected_nodes[0]])))))
 
-        initializer = []
-        for var in nodes:
-            initializer.append(tf.variables_initializer(var_list=[var]))
-
-        return tf.stack(nodes[self.nodes[0][0] + self.nodes[0][2]:]), initializer
+        return tf.stack(nodes[self.nodes[0][0] + self.nodes[0][2]:])
         # initializer is returned as the node variables must be initiated in order
 
     # Returns a set of nodes which 'node' is allowed to make a connection to
@@ -398,10 +394,16 @@ class Mutate:
                         genome.nodes[0][2] += 1
 
                         # Add the two replacement connections
-
-                        Mutate.add_connection(genome, history, connection[0], new_node,
-                                              weight=genome.connections[2][i])
-                        Mutate.add_connection(genome, history, new_node, connection[1], weight=1)
+                        if genome.connections[2][i] <= 0:
+                            Mutate.add_connection(genome, history, connection[0], new_node,
+                                                  weight=np.sqrt(abs(genome.connections[2][i])))
+                            Mutate.add_connection(genome, history, new_node, connection[1],
+                                                  weight=-np.sqrt(abs(genome.connections[2][i])))
+                        else:
+                            Mutate.add_connection(genome, history, connection[0], new_node,
+                                                  weight=np.sqrt(genome.connections[2][i]))
+                            Mutate.add_connection(genome, history, new_node, connection[1],
+                                                  weight=np.sqrt(genome.connections[2][i]))
 
                         break
                     rand -= 1

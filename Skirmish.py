@@ -5,14 +5,17 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 import Graphics
 import LoadingBar
+import time
+import pickle
 
 
 class Simulation:
     def __init__(self, population_sizes, window_dimensions, num_photoreceptors=10, visual_acuity=3, velocity_decay=0.9,
-                 dt=0.1, bounds='wall', maximum_acceleration=10., rotation_multiplier=2., max_damage=0.01,
+                 dt=0.1, bounds='wall', maximum_acceleration=100., rotation_multiplier=2., max_damage=0.01,
                  energy_regeneration=0.001, acceleration_energy_use=2., attack_energy_use=4., attack_range=50,
                  attack_angle=np.pi / 6., friendly_fire_multiplier=1., show_vision=False, vision_draw_length=100.,
-                 took_dmg_from_friend=-0.5, damaged_friend=-1., took_dmg_from_enemy=-1., damaged_enemy=2.):
+                 took_dmg_from_friend=-0.5, damaged_friend=-1., took_dmg_from_enemy=-1., damaged_enemy=2.,
+                 frame_rate=30):
 
         self.population_sizes = population_sizes
         self.population_total = sum(population_sizes)
@@ -32,6 +35,7 @@ class Simulation:
         self.friendly_fire_multiplier = friendly_fire_multiplier
         self.show_vision = show_vision
         self.vision_draw_length = vision_draw_length
+        self.frame_rate = frame_rate
 
         self.window_dimensions = window_dimensions
         wd = window_dimensions
@@ -113,7 +117,7 @@ class Simulation:
 
     def fill_object_list(self):
 
-        color_dict = {0: 'Black', 1: 'Grey', 2: 'Black', 3: 'Grey', 4: 'Black', 5: 'Grey', 6: 'Black'}
+        color_dict = {0: (50, 50, 50), 1: (200, 200, 200)}
 
         for i in range(len(self.population_sizes)):
             for j in range(self.population_sizes[i]):
@@ -144,11 +148,12 @@ class Simulation:
         member.stats[1] += self.energy_regeneration
 
         energy_function = np.tanh(4 * member.stats[1])
-        a_multiplier = np.array([1., 0.5], dtype=np.float32) * energy_function * self.maximum_acceleration
+        a_multiplier = np.array([1., 0.5], dtype=np.float32) * energy_function * self.maximum_acceleration * self.dt
 
         member.phys.vars[6:8] = np.matmul(member.rotation_mat.transpose(),
                                           np.multiply(network_output[:2], a_multiplier))
-        member.phys.vars[8] = network_output[2] * energy_function * self.maximum_acceleration * self.rotation_multiplier
+        member.phys.vars[8] = network_output[2] * energy_function * self.maximum_acceleration * \
+            self.rotation_multiplier * self.dt
         if network_output[3] > 0:
             member.stats[2] = energy_function * self.max_damage
         else:
@@ -232,10 +237,9 @@ class Simulation:
             network_in = [tf.placeholder(tf.float32, [self.basic_structure[0]])] * self.population_total
             network_in_load = [np.empty(self.basic_structure[0], np.float32)] * self.population_total
             network_out = [None] * self.population_total
-            initializer = [None] * self.population_total
 
             for i in range(self.population_total):
-                network_out[i], initializer[i] = self.population.members[i].calculate_output(network_in[i])
+                network_out[i] = self.population.members[i].calculate_output(network_in[i])
                 lb.show((i + 1.) / self.population_total)
 
         physics_graph = tf.Graph()
@@ -247,15 +251,6 @@ class Simulation:
 
         network_session = tf.Session(graph=network_graph)
         phys_session = tf.Session(graph=physics_graph)
-
-        lb.description = "Initializing TensorFlow variables..."
-        variables_initialised = 0.
-        total_variables = sum([len(init) for init in initializer])
-        for i in range(self.population_total):
-            for init in initializer[i]:
-                network_session.run(init, feed_dict={network_in[i]: network_in_load[i]})
-                variables_initialised += 1.
-                lb.show(variables_initialised / total_variables)
 
         visualiser_object_list = [self.population.members[i].visualiser(self.layout[1][1], self.layout[1][0])
                                   for i in range(self.population_total)]
@@ -275,13 +270,14 @@ class Simulation:
 
         x = [self.window_dimensions[1], self.layout[3][0][1], self.layout[3][1][0]]
         text_object_list = []
-        lines_of_text = 3
+        lines_of_text = 4
         for i in range(lines_of_text):
             text_object_list.append(['Text', x[2], 2 * (x[0] - (x[0] - x[1]) * (i + 1) / (lines_of_text + 1)), ''])
         text_object_list[0][3] = 'Generation {}'.format(self.population.generation)
 
         scores = np.empty(self.population_total, dtype=np.float32)
 
+        last_frame_time = time.time()
         for i in range(int(run_time / self.dt)):
 
             self.calculate_input()
@@ -303,36 +299,42 @@ class Simulation:
 
             self.update_health()
 
-            self.update_object_list(self.layout[0][0])
+            if time.time() - last_frame_time > 1. / self.frame_rate:
+                last_frame_time = time.time()
 
-            text_object_list[1][3] = 'Simulation time: {}h {}m {}s'.format(
-                int(i * self.dt / 3600), int(((i * self.dt) % 3600) / 60), int((i * self.dt) % 60))
-            for i in range(self.population_total):
-                scores[i] = self.population.members[i].score
-            text_object_list[2][3] = 'Highest Score: %.2f' % np.max(scores)
+                self.update_object_list(self.layout[0][0])
 
-            environment.object_lists = [self.object_list, layout_object_list, visualiser_object_list[np.argmax(scores)],
-                                        text_object_list]
-            environment.on_draw()
+                text_object_list[1][3] = 'Simulation time: {}h {}m {}s'.format(
+                    int(i * self.dt / 3600), int(((i * self.dt) % 3600) / 60), int((i * self.dt) % 60))
+                for i in range(self.population_total):
+                    scores[i] = self.population.members[i].score
+                text_object_list[2][3] = 'Highest Score: %.2f' % np.max(scores)
+                text_object_list[3][3] = 'Num of species: {}'.format(len(self.population.species_structure))
 
-            pyglet.clock.tick()
+                environment.object_lists = [self.object_list, layout_object_list,
+                                            visualiser_object_list[np.argmax(scores)], text_object_list]
 
-            for window in pyglet.app.windows:
-                window.switch_to()
-                window.dispatch_events()
-                # window.dispatch_event('on_draw')
-                window.flip()
+                pyglet.clock.tick()
+
+                for window in pyglet.app.windows:
+                    window.switch_to()
+                    window.dispatch_events()
+                    window.dispatch_event('on_draw')
+                    window.flip()
 
         for i in range(self.population_total):
             self.population.member_fitness[i] = np.exp(self.population.members[i].score)
 
 
-wd = [700, 500]
-sim = Simulation([5, 5], [700, 500], num_photoreceptors=5, bounds='loop', attack_range=40, visual_acuity=8)
+window_dim = [1000, 600]
+sim = Simulation([20, 20], window_dim, num_photoreceptors=5, bounds='loop', attack_range=40, visual_acuity=8,
+                 frame_rate=20.)
+# sim = pickle.load(open("save.p", "rb"))
+env = Graphics.Environment(window_dim)
 
-env = Graphics.Environment(wd)
 while True:
-    sim.population.next_generation(sim.history, structure_mutation_chance=0.2)
+    pickle.dump(sim, open("save.p", "wb"))
+    sim.population.next_generation(sim.history)
     sim.add_extra_member_info()
 
     sim.run(300, env)
