@@ -14,7 +14,7 @@ class Simulation:
                  dt=0.1, bounds='wall', maximum_acceleration=100., rotation_multiplier=2., max_damage=0.01,
                  energy_regeneration=0.001, acceleration_energy_use=2., attack_energy_use=4., attack_range=50,
                  attack_angle=np.pi / 6., friendly_fire_multiplier=1., show_vision=False, vision_draw_length=100.,
-                 took_dmg_from_friend=-0.5, damaged_friend=-1., took_dmg_from_enemy=-1., damaged_enemy=2.,
+                 took_dmg_from_friend=-0.5, damaged_friend=-1., took_dmg_from_enemy=-1., damaged_enemy=2., died=0.5,
                  frame_rate=30):
 
         self.population_sizes = population_sizes
@@ -36,6 +36,7 @@ class Simulation:
         self.show_vision = show_vision
         self.vision_draw_length = vision_draw_length
         self.frame_rate = frame_rate
+        self.died = died
 
         self.window_dimensions = window_dimensions
         wd = window_dimensions
@@ -229,6 +230,7 @@ class Simulation:
                 member.phys = Physics.Phys(displacement=np.concatenate((np.random.random_sample(2) * self.layout[0][1],
                                                                         np.array([np.random.random_sample() * 360]))))
                 member.stats = np.ones(3, dtype=np.float32)
+                member.score -= self.died
 
     def run(self, run_time, environment):
         network_graph = tf.Graph()

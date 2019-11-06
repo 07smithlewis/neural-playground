@@ -240,7 +240,7 @@ class Genome:
 
 class Population:
 
-    max_species_diversity = 0.8
+    max_species_diversity = 0.2
 
     def __init__(self, basic_structure, size):
         self.generation = 0
