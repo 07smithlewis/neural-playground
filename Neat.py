@@ -54,7 +54,7 @@ class Genome:
                     if connected_nodes[0].size != 0:
                         connected_nodes[0] = np.vectorize(node_num_map.get)(connected_nodes[0])
 
-                    nodes.append(tf.math.tanh(tf.reduce_sum(
+                    nodes.append(tf.sigmoid(tf.reduce_sum(
                         tf.multiply(tf.constant(connected_nodes[1], dtype=tf.float32),
                                     tf.stack([nodes[j] for j in connected_nodes[0]])))))
 
@@ -110,7 +110,7 @@ class Genome:
     # Creates a description of the network structure to be decoded by Graphics.py
     def visualiser(self, draw_size, draw_location=[0, 0], weight_maximum=10):
 
-        border = [draw_size[0] / 10.] * 2
+        border = [np.min(draw_size) / 10.] * 2
         node_size = 6
         hidden_offset = draw_size[0] / 10.
         hidden_horizontal_locations = 1
@@ -195,7 +195,7 @@ class Genome:
                     color = tuple([255, 0, 0, int(np.tanh(-self.connections[2][i] * 4 / weight_maximum) * 255)])
 
                 connection_list.append(['Line', *list(np.add(location1, draw_location)),
-                                        *list(np.add(location2, draw_location)), 4, color])
+                                        *list(np.add(location2, draw_location)), 2, color])
 
         object_list.extend(connection_list)
         object_list.extend(node_list)
@@ -282,7 +282,7 @@ class Population:
 
         self.members = [self.members[i] for i in members_order]
 
-    def next_generation(self, history, mutation_fraction=0.1, mutation_factor=0.5, structure_mutation_chance=0.1,
+    def next_generation(self, history, mutation_fraction=0.1, mutation_factor=0.5, structure_mutation_chance=0.2,
                         ratio_add_to_split=0.5):
 
         self.generation += 1
@@ -394,17 +394,9 @@ class Mutate:
                         genome.nodes[0][2] += 1
 
                         # Add the two replacement connections
-                        if genome.connections[2][i] <= 0:
-                            Mutate.add_connection(genome, history, connection[0], new_node,
-                                                  weight=np.sqrt(abs(genome.connections[2][i])))
-                            Mutate.add_connection(genome, history, new_node, connection[1],
-                                                  weight=-np.sqrt(abs(genome.connections[2][i])))
-                        else:
-                            Mutate.add_connection(genome, history, connection[0], new_node,
-                                                  weight=np.sqrt(genome.connections[2][i]))
-                            Mutate.add_connection(genome, history, new_node, connection[1],
-                                                  weight=np.sqrt(genome.connections[2][i]))
-
+                        Mutate.add_connection(genome, history, connection[0], new_node, weight=1)
+                        Mutate.add_connection(genome, history, new_node, connection[1],
+                                              weight=4 * genome.connections[2][i])
                         break
                     rand -= 1
 
