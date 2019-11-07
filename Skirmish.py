@@ -4,7 +4,6 @@ import Physics
 import numpy as np
 import tensorflow.compat.v1 as tf
 import Graphics
-import LoadingBar
 import time
 import pickle
 
@@ -85,6 +84,7 @@ class Simulation:
             member.rotation_mat = np.array([[1, 0], [0, 1]], dtype=np.float32)
             member.score = 0.
 
+    # Calculate the network input of each member of the population
     def calculate_input(self):
 
         coordinates = np.empty((2, sum(self.population_sizes)), dtype=np.float32)
@@ -128,6 +128,7 @@ class Simulation:
                     friendly_photoreceptors, unfriendly_photoreceptors,
                     normalised_velocity, self.population.members[k].stats[:2]))
 
+    # Create the list of objects needed by Graphics.py, to draw the population
     def fill_object_list(self):
 
         color_dict = {0: (50, 50, 50, 255), 1: (200, 200, 200, 255)}
@@ -140,6 +141,7 @@ class Simulation:
                 else:
                     self.object_list.append(['Fob', 0, 0, 0, color_dict[i], 0, 0])
 
+    # Update the list of objects with current positions, and agent stats
     def update_object_list(self, offset=[0, 0]):
         offset_ = [0, 0, 0]
         offset_[:2] = offset
@@ -156,6 +158,7 @@ class Simulation:
                 self.object_list[i][1:4] = np.add(self.population.members[i].phys.vars[:3], offset_)
                 self.object_list[i][5:7] = self.population.members[i].stats[:2]
 
+    # Use the network outputs to update the agent's acceleration, stats, and energy
     def update_member(self, member, network_output):
 
         member.stats[1] += self.energy_regeneration
@@ -177,6 +180,7 @@ class Simulation:
             energy_function * self.acceleration_energy_use * np.sqrt(network_output[:3].dot(
                 network_output[:3])) - self.attack_energy_use * member.stats[2] / self.max_damage), 0, 1)
 
+    # Determine the agents that have taken damage, and update health and score accordingly
     def update_health(self):
         attack_range_squared = np.power(self.attack_range, 2)
         coordinates = np.empty((3, sum(self.population_sizes)), dtype=np.float32)
@@ -253,6 +257,7 @@ class Simulation:
                                                                         np.array([np.random.random_sample() * 360]))))
                 member.stats = np.ones(3, dtype=np.float32)
 
+    # Create the object lists used by Graphics.py to draw the maximum score over generation graph
     def draw_max_score_history(self, draw_size, draw_location=[0, 0]):
         border = np.multiply(draw_size, [0.15, 0.1])
 
@@ -286,9 +291,14 @@ class Simulation:
 
         return object_list, text_list
 
+    # Run the simulation
     def run(self, run_time, environment):
+
+        # Create the TensorFlow computation graphs
         network_graph = tf.Graph()
         last_frame_time = time.time()
+
+        # Create networks computation graph
         with network_graph.as_default():
             network_in = [tf.placeholder(tf.float32, [self.basic_structure[0]])] * self.population_total
             network_in_load = [np.empty(self.basic_structure[0], np.float32)] * self.population_total
@@ -297,6 +307,7 @@ class Simulation:
             for i in range(self.population_total):
                 network_out[i] = self.population.members[i].calculate_output(network_in[i])
 
+                # Loading bar
                 if self.graphics and time.time() - last_frame_time > 1. / self.frame_rate:
                     last_frame_time = time.time()
                     object_lists = environment.object_lists
@@ -325,6 +336,7 @@ class Simulation:
                     environment.window.flip()
                     environment.object_lists = object_lists
 
+        # Create physics computation graph
         physics_graph = tf.Graph()
         with physics_graph.as_default():
             phys_in = tf.placeholder(tf.float32, [self.population_total, 9])
@@ -335,9 +347,11 @@ class Simulation:
         network_session = tf.Session(graph=network_graph)
         phys_session = tf.Session(graph=physics_graph)
 
+        # Graphics description for network visualisation
         visualiser_object_list = [self.population.members[i].visualiser(self.layout[1][1], self.layout[1][0])
                                   for i in range(self.population_total)]
 
+        # Graphics description for layout separation borders
         lines = []
         x = [self.layout[1][1][0], self.window_dimensions[1]]
         layout_object_list = [['Rectangle', x[0] / 2., x[1] / 2., 0, x, (255, 255, 255, 255)]]
@@ -351,6 +365,7 @@ class Simulation:
         for line in lines:
             layout_object_list.append(['Line', *line, 8])
 
+        # Graphics description for Text
         x = [self.window_dimensions[1], self.layout[3][0][1], self.layout[3][1][0]]
         text_object_list = []
         lines_of_text = 4
@@ -358,19 +373,21 @@ class Simulation:
             text_object_list.append(['Text', x[2], 2 * (x[0] - (x[0] - x[1]) * (i + 1) / (lines_of_text + 1)), ''])
         text_object_list[0][3] = 'Generation {}'.format(self.population.generation)
 
+        # Graphics description for score history graph
         graph_object_list, graph_text = self.draw_max_score_history(self.layout[2][1], self.layout[2][0])
         text_object_list.extend(graph_text)
 
         scores = np.empty(self.population_total, dtype=np.float32)
-
         last_frame_time = time.time()
+
+        # Main simulation loop
         for i in range(int(run_time / self.dt)):
 
             self.calculate_input()
-
             for j in range(self.population_total):
                 network_in_load[j] = self.population.members[j].input
 
+            # Calculate agent networks
             network_out_load = network_session.run(network_out, feed_dict={
                 a: b for a, b in zip(network_in, network_in_load)})
 
@@ -378,6 +395,7 @@ class Simulation:
                 self.update_member(self.population.members[j], network_out_load[j])
                 phys_in_load[j, :] = self.population.members[j].phys.vars
 
+            # Calculate agent physics
             phys_out_load = phys_session.run(phys_out, feed_dict={phys_in: phys_in_load})
 
             for j in range(self.population_total):
@@ -385,11 +403,13 @@ class Simulation:
 
             self.update_health()
 
+            # Graphics loop (Run frequency determined by framerate)
             if self.graphics and time.time() - last_frame_time > 1. / self.frame_rate:
                 last_frame_time = time.time()
 
                 self.update_object_list(self.layout[0][0])
 
+                # Fill in text with current information
                 text_object_list[1][3] = 'Simulation time: {}h {}m {}s'.format(
                     int(i * self.dt / 3600), int(((i * self.dt) % 3600) / 60), int((i * self.dt) % 60))
                 for j in range(self.population_total):
@@ -397,11 +417,13 @@ class Simulation:
                 text_object_list[2][3] = 'Highest Score: %.2f' % np.max(scores)
                 text_object_list[3][3] = 'Num of species: {}'.format(len(self.population.species_structure))
 
+                # Pass current graphics information to the environment object
                 environment.object_lists = [self.object_list, layout_object_list, graph_object_list,
                                             visualiser_object_list[np.argmax(scores)], text_object_list]
 
                 pyglet.clock.tick()
 
+                # Draw the frame
                 environment.window.dispatch_events()
                 environment.window.dispatch_event('on_draw')
                 environment.window.flip()

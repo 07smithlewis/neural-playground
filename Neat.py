@@ -1,9 +1,6 @@
 import numpy as np
 import tensorflow.compat.v1 as tf
-import pyglet
-import time
 import copy
-import Graphics
 
 
 class Genome:
@@ -240,6 +237,7 @@ class Genome:
 
 class Population:
 
+    # The 'distance' between genomes required to consider them different species
     max_species_diversity = 0.2
 
     def __init__(self, basic_structure, size):
@@ -255,6 +253,7 @@ class Population:
 
         self.update_species_structure()
 
+    # Finds the number of species, and the number of agents classified into each species
     def update_species_structure(self):
         species_groups = [[0]]
 
@@ -282,6 +281,7 @@ class Population:
 
         self.members = [self.members[i] for i in members_order]
 
+    # Create a new population by breeding together members of the current population
     def next_generation(self, history, mutation_fraction=0.1, mutation_factor=0.5, structure_mutation_chance=0.2,
                         ratio_add_to_split=0.5):
 
@@ -296,9 +296,12 @@ class Population:
 
             total_species_fitness = sum(self.member_fitness[i:i + j])
 
+            # The new population of each species is determined by how well the species performed
             species_population = int(total_species_fitness / average_fitness)
 
             for _ in range(species_population):
+
+                # Choose two members of the species ar random, weighted by their fitness
                 index = [0] * 2
                 for ind in range(2):
                     rand = np.random.random_sample() * total_species_fitness
@@ -308,6 +311,7 @@ class Population:
                             break
                         rand -= self.member_fitness[i + j_]
 
+                # Breed them together, and add the result to the new population
                 new_members.append(Mutate.reproduce(self.members[index[0]], self.members[index[1]]))
 
             i += j
@@ -318,10 +322,12 @@ class Population:
                                    new_members[len(new_members) - 1].connections[0] * 0.5 * (1. + mutation_fraction),
                                    mutation_factor=mutation_factor)
 
+        # Mutate the weights of the new population
         for member in new_members:
             Mutate.weight_mutation(member, int(np.ceil(member.connections[0] * mutation_fraction)),
                                    mutation_factor=mutation_factor)
 
+            # Randomly add additional network structure to some members of the population
             if np.random.random_sample() < structure_mutation_chance:
                 if np.random.random_sample() < ratio_add_to_split:
                     Mutate.add_random_connection(member, history)
@@ -336,6 +342,7 @@ class Population:
 class Mutate:
     # A number of functions to edit the structure of a network
 
+    # Add a connection at a random location in the network
     @staticmethod
     def add_random_connection(genome, history):
 
@@ -358,6 +365,7 @@ class Mutate:
 
             Mutate.add_connection(genome, history, *connection)
 
+    # Add a connection between two specific nodes in the network
     @staticmethod
     def add_connection(genome, history, node1, node2, weight=0):
         if not History.is_in(node1, node2, history.connection_history):
@@ -367,13 +375,13 @@ class Mutate:
         genome.connections[2] = np.append(genome.connections[2], weight)
         genome.connections[0] += 1
 
+    # Add a node along a random connection in the network, splitting it into two connections
     @staticmethod
     def split_connection(genome, history):
 
         if genome.connections[0] != 0:
 
             # Select a random connection that hasn't previous;y been split
-
             rand = np.random.randint(sum(genome.connections[1][:, 3]))
             for i in range(genome.connections[0]):
                 if genome.connections[1][i, 3] == 1:
@@ -382,11 +390,9 @@ class Mutate:
                         connection = genome.connections[1][i, 1:3]
 
                         # Disable the connection
-
                         genome.connections[1][i, 3] = 0
 
                         # Add a node between the two nodes
-
                         if not History.is_in(*connection, history.node_history):
                             history.append_node_history(*connection)
                         new_node = history.node_history[connection[0]][connection[1]]
@@ -400,13 +406,13 @@ class Mutate:
                         break
                     rand -= 1
 
+    # Combine together two parent networks to create a child network that inherits structure from both
     @staticmethod
     def reproduce(genome1, genome2):
 
         genome3 = copy.deepcopy(genome1)
 
         additional_nodes = np.setdiff1d(genome2.nodes[1], genome1.nodes[1])
-
         genome3.nodes[1] = np.append(genome3.nodes[1], additional_nodes)
         genome3.nodes[0][2] += additional_nodes.size
 
@@ -424,6 +430,7 @@ class Mutate:
 
         return genome3
 
+    # Change the weights of n connections in the network by a small amount
     @staticmethod
     def weight_mutation(genome, n=1, mutation_factor=0.1, weight_max=10):
         if genome.connections[0] != 0:
