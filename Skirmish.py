@@ -9,54 +9,56 @@ import pickle
 
 
 class Simulation:
-    def __init__(self, population_sizes, window_dimensions, num_photoreceptors=10, visual_acuity=3, velocity_decay=0.2,
-                 dt=0.1, bounds='wall', maximum_acceleration=100., rotation_multiplier=2., max_damage=0.01,
-                 energy_regeneration=0.001, acceleration_energy_use=2., attack_energy_use=4., attack_range=50,
+    def __init__(self, population_sizes, window_dimensions, num_photoreceptors=5, visual_acuity=8, velocity_decay=0.2,
+                 dt=0.1, bounds='loop', maximum_acceleration=100., rotation_multiplier=2., strafe_multiplier=0.5,
+                 energy_regeneration=0.01, acceleration_energy_use=2., attack_energy_use=4., attack_range=40,
                  attack_angle=np.pi / 6., friendly_fire_multiplier=1., show_vision=False, vision_draw_length=100.,
                  took_dmg_from_friend=-0.5, damaged_friend=-1., took_dmg_from_enemy=-1., damaged_enemy=2., died=-1.,
-                 killed_friend=-1., killed_enemy=2., frame_rate=30, graphics=True, max_score_history=100,
-                 strafe_multiplier=0.5):
+                 killed_friend=-1., killed_enemy=2., frame_rate=20, graphics=True, max_score_history=100,
+                 max_damage=0.1):
 
         self.population_sizes = population_sizes
-        self.population_total = sum(population_sizes)
-        self.num_photoreceptors = num_photoreceptors
-        self.visual_acuity = visual_acuity
-        self.velocity_decay_dt = (1 - (1 - velocity_decay) * dt)
-        self.dt = dt
-        self.bounds = bounds
-        self.maximum_acceleration = maximum_acceleration
-        self.max_velocity = self.maximum_acceleration / (1 - velocity_decay)
-        self.rotation_multiplier = rotation_multiplier
-        self.max_damage = max_damage
-        self.energy_regeneration = energy_regeneration
-        self.acceleration_energy_use = acceleration_energy_use
-        self.attack_energy_use = attack_energy_use
-        self.attack_range = attack_range
-        self.attack_angle = attack_angle
-        self.friendly_fire_multiplier = friendly_fire_multiplier
-        self.show_vision = show_vision
-        self.vision_draw_length = vision_draw_length
-        self.frame_rate = frame_rate
-        self.died = died
-        self.graphics = graphics
-        self.max_score_history = np.zeros(max_score_history, dtype=np.float32)
-        self.strafe_multiplier = strafe_multiplier
-        self.killed_friend = killed_friend
-        self.killed_enemy = killed_enemy
-
         self.window_dimensions = window_dimensions
+
+        self.num_photoreceptors = num_photoreceptors       # The number of angle regions the agents vision is split into
+        self.visual_acuity = visual_acuity             # How concentrated the regions are about the centre of its vision
+        self.velocity_decay = velocity_decay          # each second the velocity is multiplied by this (simple friction)
+        self.dt = dt                    # The simulation time that passes for each iteration of the main simulation loop
+        self.bounds = bounds       # Type of simulation boundary used: 'loop' = space is looped. 'wall' = solid boundary
+        self.maximum_acceleration = maximum_acceleration                     # Maximum forward acceleration of the agent
+        self.rotation_multiplier = rotation_multiplier                     # Max torque with respect to max acceleration
+        self.strafe_multiplier = strafe_multiplier            # Max strafe acceleration with respect to max acceleration
+        self.energy_regeneration = energy_regeneration                              # Amount of energy gained per second
+        self.acceleration_energy_use = acceleration_energy_use              # Energy used per second at max acceleration
+        self.attack_energy_use = attack_energy_use                # Energy used per second when attacking at full energy
+        self.attack_range = attack_range                                           # Range at which attacks cause damage
+        self.attack_angle = attack_angle                                   # Maximum angle at which attacks cause damage
+        self.max_damage = max_damage                                   # Damage per second when attacking at full energy
+        self.friendly_fire_multiplier = friendly_fire_multiplier          # Damage to own team wrt damage to other teams
+        self.frame_rate = frame_rate            # Target framerate for rendering (Actual framerate will stay below this)
+        self.died = died                                                                    # Score value of agent death
+        self.killed_friend = killed_friend                        # Score value of agent killing member of it's own team
+        self.killed_enemy = killed_enemy                           # Score value of agent killing member of another team
+        self.took_dmg_from_friend = took_dmg_from_friend   # Score value per damage point of taking damage from own team
+        self.damaged_friend = damaged_friend                        # Score value per damage point of attacking own team
+        self.took_dmg_from_enemy = took_dmg_from_enemy       # Score value per dmg point of taking dmg from another team
+        self.damaged_enemy = damaged_enemy                      # Score value per damage point of attacking another team
+        self.max_score_history = np.zeros(max_score_history, dtype=np.float32)  # Number of generations plotted on score
+                                                                                # history graph
+        self.graphics = graphics                                       # True: Draw graphics, False: Don't draw graphics
+        self.show_vision = show_vision                                   # Draw lines showing agent vision angle regions
+        self.vision_draw_length = vision_draw_length                                            # Length of vision lines
+
+        self.population_total = sum(population_sizes)
+        self.velocity_decay_dt = (1 - (1 - velocity_decay) * dt)
+        self.max_velocity = self.maximum_acceleration / (1 - velocity_decay)
+
         wd = window_dimensions
         params = [0.3, 0.2, 0.6]
         self.layout = [[[params[0] * wd[0], 0], [(1 - params[0]) * wd[0], wd[1]]],
                        [[0, params[1] * wd[1]], [params[0] * wd[0], params[2] * wd[1]]],
                        [[0, 0], [params[0] * wd[0], params[1] * wd[1]]],
                        [[0, (params[1] + params[2]) * wd[1]], [params[0] * wd[0], (1 - params[1] - params[2]) * wd[1]]]]
-
-        # Score multipliers
-        self.took_dmg_from_friend = took_dmg_from_friend
-        self.damaged_friend = damaged_friend
-        self.took_dmg_from_enemy = took_dmg_from_enemy
-        self.damaged_enemy = damaged_enemy
 
         self.vision_bins = np.arange(-self.num_photoreceptors / 2., self.num_photoreceptors / 2. + 1)
         self.vision_bins = np.exp(self.vision_bins * self.visual_acuity / self.num_photoreceptors) - np.exp(
@@ -161,7 +163,7 @@ class Simulation:
     # Use the network outputs to update the agent's acceleration, stats, and energy
     def update_member(self, member, network_output):
 
-        member.stats[1] += self.energy_regeneration
+        member.stats[1] += self.energy_regeneration * self.dt
 
         energy_function = np.tanh(4 * member.stats[1])
         a_multiplier = np.array(
@@ -172,11 +174,11 @@ class Simulation:
         member.phys.vars[8] = network_output[2] * energy_function * self.maximum_acceleration * \
             self.rotation_multiplier * self.dt
         if network_output[3] > 0:
-            member.stats[2] = energy_function * self.max_damage
+            member.stats[2] = energy_function * self.max_damage * self.dt
         else:
             member.stats[2] = 0
 
-        member.stats[1] = np.clip(member.stats[1] - self.energy_regeneration * (
+        member.stats[1] = np.clip(member.stats[1] - self.energy_regeneration * self.dt * (
             energy_function * self.acceleration_energy_use * np.sqrt(network_output[:3].dot(
                 network_output[:3])) - self.attack_energy_use * member.stats[2] / self.max_damage), 0, 1)
 
@@ -434,16 +436,34 @@ class Simulation:
         self.max_score_history = np.roll(self.max_score_history, -1)
         self.max_score_history[len(self.max_score_history) - 1] = np.max(scores)
 
+# =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== #
+# //////////////////////////////////////////////////////////////////////////////////////////////////////////////////// #
+# =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== #
+# Only make changes to the parameters in here
 
-window_dim = [1000, 700]
-sim = Simulation([15, 15], window_dim, num_photoreceptors=5, bounds='loop', attack_range=40, visual_acuity=8,
-                 frame_rate=20)
+
+window_dimensions = [1000, 700]
+
+# A list of agent team sizes e.g. [3, 3, 3, 3] would create 4 teams of 3
+team_sizes = [15, 15]
+
+# The time in seconds each generation is simulated for
+run_time = 200
+
+# Look at the definition of the Simulation class for a full list of optional arguments
+sim = Simulation(team_sizes, window_dimensions)
+
+# Uncomment this line if you want to continue from your last session, rather than starting a new one
 # sim = pickle.load(open("save.p", "rb"))
-env = Graphics.Environment(window_dim)
+
+# =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== #
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ #
+# =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== #
+
+env = Graphics.Environment(window_dimensions)
 
 while True:
     pickle.dump(sim, open("save.p", "wb"))
     sim.population.next_generation(sim.history)
     sim.add_extra_member_info()
-
-    sim.run(200, env)
+    sim.run(run_time, env)
