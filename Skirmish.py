@@ -133,7 +133,8 @@ class Simulation:
     # Create the list of objects needed by Graphics.py, to draw the population
     def fill_object_list(self):
 
-        color_dict = {0: (50, 50, 50, 255), 1: (200, 200, 200, 255)}
+        color_dict = {0: (50, 50, 50, 255), 1: (200, 200, 200, 255), 2: (200, 0, 0, 255), 3: (0, 200, 0, 255),
+                      4: (0, 0, 200, 255), 5: (100, 0, 100, 255), 6: (0, 100, 100, 255)}
 
         for i in range(len(self.population_sizes)):
             for j in range(self.population_sizes[i]):
@@ -209,12 +210,12 @@ class Simulation:
 
                     friendly_coordinates_ = friendly_coordinates_[:,
                                             np.add(np.power(friendly_coordinates_[1, :], 2),
-                                                   np.power(friendly_coordinates_[1, :],
+                                                   np.power(friendly_coordinates_[2, :],
                                                             2)) < attack_range_squared]
 
                     unfriendly_coordinates_ = unfriendly_coordinates_[:,
                                               np.add(np.power(unfriendly_coordinates_[1, :], 2),
-                                                     np.power(unfriendly_coordinates_[1, :],
+                                                     np.power(unfriendly_coordinates_[2, :],
                                                               2)) < attack_range_squared]
 
                     c = np.cos(self.population.members[k].phys.vars[2] * np.pi / 180.)
@@ -273,7 +274,7 @@ class Simulation:
         for i in range(100):
             graph_maximum = np.power(10, i + 1)
             if maximum < graph_maximum:
-                graph_maximum = int(maximum / np.power(10, i)) + 1
+                graph_maximum = int(np.power(10, i) * (int(maximum / np.power(10, i)) + 1))
                 break
 
         text_list = [['Text', 2 * (draw_location[0] + border[0] / 2), 2 * (draw_location[1] + border[1]),
@@ -444,7 +445,7 @@ class Simulation:
 
 window_dimensions = [1000, 700]
 
-# A list of agent team sizes e.g. [3, 3, 3, 3] would create 4 teams of 3
+# A list of agent team sizes e.g. [3, 3, 3, 3] would create 4 teams of 3 (Max 6 teams)
 team_sizes = [15, 15]
 
 # The time in seconds each generation is simulated for
