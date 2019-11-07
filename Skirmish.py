@@ -206,14 +206,14 @@ class Simulation:
                     unfriendly_coordinates_[1:, :] -= coordinates[:, k][1:, None]
 
                     friendly_coordinates_ = friendly_coordinates_[:,
-                                            np.multiply(np.power(friendly_coordinates_[1, :], 2),
-                                                        np.power(friendly_coordinates_[1, :],
-                                                                 2)) < attack_range_squared]
+                                            np.add(np.power(friendly_coordinates_[1, :], 2),
+                                                   np.power(friendly_coordinates_[1, :],
+                                                            2)) < attack_range_squared]
 
                     unfriendly_coordinates_ = unfriendly_coordinates_[:,
-                                              np.multiply(np.power(unfriendly_coordinates_[1, :], 2),
-                                                          np.power(unfriendly_coordinates_[1, :],
-                                                                   2)) < attack_range_squared]
+                                              np.add(np.power(unfriendly_coordinates_[1, :], 2),
+                                                     np.power(unfriendly_coordinates_[1, :],
+                                                              2)) < attack_range_squared]
 
                     c = np.cos(self.population.members[k].phys.vars[2] * np.pi / 180.)
                     s = np.sin(self.population.members[k].phys.vars[2] * np.pi / 180.)
