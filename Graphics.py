@@ -85,7 +85,7 @@ class Objects:
             bar_cords[20:23, 0] += stat2 * (Objects.bar_cords[9, 0] - Objects.bar_cords[6, 0]) * size
             bar_cords = (bar_cords + np.array([x, y])[None, :]).flatten()
 
-            batch.add(20, GL_TRIANGLES, None, ('v2f', bar_cords.tolist()),
+            batch.add(30, GL_TRIANGLES, None, ('v2f', bar_cords.tolist()),
                       ('c4B', (0, 0, 0, 255) * 6 + (255, 255, 255, 255) * 12 + (50, 50, 50, 255) * 6 +
                        (255, 0, 0, 255) * 6))
 

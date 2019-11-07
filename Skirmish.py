@@ -264,8 +264,9 @@ class Simulation:
         maximum = np.max(self.max_score_history)
         graph_maximum = 0
         for i in range(100):
-            graph_maximum = np.power(10, i) * (int(maximum % np.power(10, i + 1)) + 1)
+            graph_maximum = np.power(10, i + 1)
             if maximum < graph_maximum:
+                graph_maximum = int(maximum / np.power(10, i)) + 1
                 break
 
         text_list = [['Text', 2 * (draw_location[0] + border[0] / 2), 2 * (draw_location[1] + border[1]),
@@ -412,8 +413,8 @@ class Simulation:
         self.max_score_history[len(self.max_score_history) - 1] = np.max(scores)
 
 
-window_dim = [1000, 600]
-sim = Simulation([10, 10], window_dim, num_photoreceptors=3, bounds='loop', attack_range=40, visual_acuity=8,
+window_dim = [1000, 700]
+sim = Simulation([15, 15], window_dim, num_photoreceptors=5, bounds='loop', attack_range=40, visual_acuity=8,
                  frame_rate=20)
 # sim = pickle.load(open("save.p", "rb"))
 env = Graphics.Environment(window_dim)
