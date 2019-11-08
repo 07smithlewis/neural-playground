@@ -51,7 +51,7 @@ class Genome:
                     if connected_nodes[0].size != 0:
                         connected_nodes[0] = np.vectorize(node_num_map.get)(connected_nodes[0])
 
-                    nodes.append(tf.sigmoid(tf.reduce_sum(
+                    nodes.append(tf.math.tanh(tf.reduce_sum(
                         tf.multiply(tf.constant(connected_nodes[1], dtype=tf.float32),
                                     tf.stack([nodes[j] for j in connected_nodes[0]])))))
 
@@ -105,7 +105,7 @@ class Genome:
         return cascade
 
     # Creates a description of the network structure to be decoded by Graphics.py
-    def visualiser(self, draw_size, draw_location=[0, 0], weight_maximum=10):
+    def visualiser(self, draw_size, draw_location=[0, 0], weight_maximum=1):
 
         border = [np.min(draw_size) / 10.] * 2
         node_size = 6
@@ -240,13 +240,20 @@ class Population:
     # The 'distance' between genomes required to consider them different species
     max_species_diversity = 0.2
 
-    def __init__(self, basic_structure, size):
+    def __init__(self, basic_structure, size, mutation_fraction=0.1, mutation_factor=0.1, structure_mutation_chance=0.2,
+                 ratio_add_to_split=0.6):
         self.generation = 0
         self.basic_structure = basic_structure
         self.size = size
         self.species_structure = []
         self.members = []
         self.member_fitness = np.ones(size, dtype=np.float32)
+        self.mutation_fraction = mutation_fraction  # The fraction of weights in the network that change each generation
+        self.mutation_factor = mutation_factor                    # The maximum amount a weight can change when mutating
+        self.structure_mutation_chance = structure_mutation_chance         # the probability new structure is added to a
+                                                                           # network each generation
+        self.ratio_add_to_split = ratio_add_to_split          # the ratio between that new structure being an additional
+                                                              # connection, to an additional node
 
         for i in range(size):
             self.members.append(Genome(self.basic_structure))
@@ -282,8 +289,7 @@ class Population:
         self.members = [self.members[i] for i in members_order]
 
     # Create a new population by breeding together members of the current population
-    def next_generation(self, history, mutation_fraction=0.1, mutation_factor=0.5, structure_mutation_chance=0.2,
-                        ratio_add_to_split=0.5):
+    def next_generation(self, history):
 
         self.generation += 1
 
@@ -322,12 +328,12 @@ class Population:
 
         # Mutate the weights of the new population
         for member in new_members:
-            Mutate.weight_mutation(member, int(np.ceil(member.connections[0] * mutation_fraction)),
-                                   mutation_factor=mutation_factor)
+            Mutate.weight_mutation(member, int(np.ceil(member.connections[0] * self.mutation_fraction)),
+                                   mutation_factor=self.mutation_factor)
 
             # Randomly add additional network structure to some members of the population
-            if np.random.random_sample() < structure_mutation_chance:
-                if np.random.random_sample() < ratio_add_to_split:
+            if np.random.random_sample() < self.structure_mutation_chance:
+                if np.random.random_sample() < self.ratio_add_to_split:
                     Mutate.add_random_connection(member, history)
                 else:
                     Mutate.split_connection(member, history)
@@ -398,9 +404,16 @@ class Mutate:
                         genome.nodes[0][2] += 1
 
                         # Add the two replacement connections
-                        Mutate.add_connection(genome, history, connection[0], new_node, weight=1)
-                        Mutate.add_connection(genome, history, new_node, connection[1],
-                                              weight=4 * genome.connections[2][i])
+                        if genome.connections[2][i] <= 0:
+                            Mutate.add_connection(genome, history, connection[0], new_node,
+                                                  weight=-np.sqrt(-genome.connections[2][i]))
+                            Mutate.add_connection(genome, history, new_node, connection[1],
+                                                  weight=np.sqrt(-genome.connections[2][i]))
+                        else:
+                            Mutate.add_connection(genome, history, connection[0], new_node,
+                                                  weight=np.sqrt(genome.connections[2][i]))
+                            Mutate.add_connection(genome, history, new_node, connection[1],
+                                                  weight=np.sqrt(genome.connections[2][i]))
                         break
                     rand -= 1
 
@@ -430,7 +443,7 @@ class Mutate:
 
     # Change the weights of n connections in the network by a small amount
     @staticmethod
-    def weight_mutation(genome, n=1, mutation_factor=0.1, weight_max=10):
+    def weight_mutation(genome, n=1, mutation_factor=0.1, weight_max=1):
         if genome.connections[0] != 0:
             prob = float(n) / genome.connections[0]
             if genome.connections[0] != 0:

@@ -15,7 +15,8 @@ class Simulation:
                  attack_angle=np.pi / 6., friendly_fire_multiplier=1., show_vision=False, vision_draw_length=100.,
                  took_dmg_from_friend=-0.5, damaged_friend=-1., took_dmg_from_enemy=-1., damaged_enemy=2., died=-1.,
                  killed_friend=-1., killed_enemy=2., frame_rate=20, graphics=True, max_score_history=100,
-                 max_damage=0.1):
+                 max_damage=0.1, mutation_fraction=0.1, mutation_factor=0.1, structure_mutation_chance=0.2,
+                 ratio_add_to_split=0.6):
 
         self.population_sizes = population_sizes
         self.window_dimensions = window_dimensions
@@ -44,10 +45,16 @@ class Simulation:
         self.took_dmg_from_enemy = took_dmg_from_enemy       # Score value per dmg point of taking dmg from another team
         self.damaged_enemy = damaged_enemy                      # Score value per damage point of attacking another team
         self.max_score_history = np.zeros(max_score_history, dtype=np.float32)  # Number of generations plotted on score
-                                                                                # history graph
+        # history graph
         self.graphics = graphics                                       # True: Draw graphics, False: Don't draw graphics
         self.show_vision = show_vision                                   # Draw lines showing agent vision angle regions
         self.vision_draw_length = vision_draw_length                                            # Length of vision lines
+        self.mutation_fraction = mutation_fraction  # The fraction of weights in the network that change each generation
+        self.mutation_factor = mutation_factor                    # The maximum amount a weight can change when mutating
+        self.structure_mutation_chance = structure_mutation_chance      # the probability new structure is added to a
+        # network each generation
+        self.ratio_add_to_split = ratio_add_to_split        # the ratio between that new structure being an additional
+        # connection, to an additional node
 
         self.population_total = sum(population_sizes)
         self.velocity_decay_dt = (1 - (1 - velocity_decay) * dt)
@@ -65,11 +72,14 @@ class Simulation:
             -self.vision_bins * self.visual_acuity / self.num_photoreceptors)
         self.vision_bins *= np.pi / 2. / (np.exp(self.visual_acuity / 2.) - np.exp(-self.visual_acuity / 2.))
 
-        inputs = num_photoreceptors * 2 + 3 + 2     # [Vision, Velocity, Agent Stats]
+        inputs = num_photoreceptors * 2 + 3 + 2 + 1    # [Vision, Velocity, Agent Stats, Bias]
         outputs = 3 + 1                             # [Acceleration, Agent Actions]
         self.basic_structure = [inputs, outputs]
 
-        self.population = Neat.Population(self.basic_structure, sum(self.population_sizes))
+        self.population = Neat.Population(
+            self.basic_structure, sum(self.population_sizes), mutation_fraction=self.mutation_fraction,
+            mutation_factor=self.mutation_factor, structure_mutation_chance=self.structure_mutation_chance,
+            ratio_add_to_split=self.ratio_add_to_split)
         self.history = Neat.History(sum(self.basic_structure) - 1)
 
         self.add_extra_member_info()
@@ -128,7 +138,7 @@ class Simulation:
 
                 self.population.members[k].input = np.concatenate((
                     friendly_photoreceptors, unfriendly_photoreceptors,
-                    normalised_velocity, self.population.members[k].stats[:2]))
+                    normalised_velocity, self.population.members[k].stats[:2], np.ones(1)))
 
     # Create the list of objects needed by Graphics.py, to draw the population
     def fill_object_list(self):
@@ -210,15 +220,15 @@ class Simulation:
                     friendly_coordinates_[1:, :] -= coordinates[:, k][1:, None]
                     unfriendly_coordinates_[1:, :] -= coordinates[:, k][1:, None]
 
-                    friendly_coordinates_ = friendly_coordinates_[:,
-                                            np.add(np.power(friendly_coordinates_[1, :], 2),
-                                                   np.power(friendly_coordinates_[2, :],
-                                                            2)) < attack_range_squared]
+                    friendly_coordinates_ = friendly_coordinates_[
+                                            :, np.add(np.power(friendly_coordinates_[1, :], 2),
+                                                      np.power(friendly_coordinates_[2, :],
+                                                               2)) < attack_range_squared]
 
-                    unfriendly_coordinates_ = unfriendly_coordinates_[:,
-                                              np.add(np.power(unfriendly_coordinates_[1, :], 2),
-                                                     np.power(unfriendly_coordinates_[2, :],
-                                                              2)) < attack_range_squared]
+                    unfriendly_coordinates_ = unfriendly_coordinates_[
+                                              :, np.add(np.power(unfriendly_coordinates_[1, :], 2),
+                                                        np.power(unfriendly_coordinates_[2, :],
+                                                                 2)) < attack_range_squared]
 
                     c = np.cos(self.population.members[k].phys.vars[2] * np.pi / 180.)
                     s = np.sin(self.population.members[k].phys.vars[2] * np.pi / 180.)
@@ -455,16 +465,16 @@ class Simulation:
 # Only make changes to the parameters in here
 
 
-window_dimensions = [1000, 700]
+window_dimensions_ = [1000, 700]
 
 # A list of agent team sizes e.g. [3, 3, 3, 3] would create 4 teams of 3 (Max 6 teams)
 team_sizes = [15, 15]
 
 # The time in seconds each generation is simulated for
-run_time = 100
+run_time_ = 120
 
 # Look at the definition of the Simulation class for a full list of optional arguments
-sim = Simulation(team_sizes, window_dimensions)
+sim = Simulation(team_sizes, window_dimensions_)
 
 # Uncomment this line if you want to continue from your last session, rather than starting a new one
 # sim = pickle.load(open("save.p", "rb"))
@@ -473,10 +483,10 @@ sim = Simulation(team_sizes, window_dimensions)
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ #
 # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== #
 
-env = Graphics.Environment(window_dimensions)
+env = Graphics.Environment(window_dimensions_)
 
 while True:
     pickle.dump(sim, open("save.p", "wb"))
     sim.population.next_generation(sim.history)
     sim.add_extra_member_info()
-    sim.run(run_time, env)
+    sim.run(run_time_, env)
