@@ -11,7 +11,7 @@ import pickle
 class Simulation:
     def __init__(self, population_sizes, window_dimensions, num_photoreceptors=5, visual_acuity=8, velocity_decay=0.2,
                  dt=0.1, bounds='loop', maximum_acceleration=100., rotation_multiplier=2., strafe_multiplier=0.5,
-                 energy_regeneration=0.01, acceleration_energy_use=2., attack_energy_use=4., attack_range=40,
+                 energy_regeneration=0.01, acceleration_energy_use=2., attack_energy_use=2., attack_range=40,
                  attack_angle=np.pi / 6., friendly_fire_multiplier=1., show_vision=False, vision_draw_length=100.,
                  took_dmg_from_friend=-0.5, damaged_friend=-1., took_dmg_from_enemy=-1., damaged_enemy=2., died=-1.,
                  killed_friend=-1., killed_enemy=2., frame_rate=20, graphics=True, max_score_history=100,
@@ -193,7 +193,7 @@ class Simulation:
 
         member.stats[1] = np.clip(member.stats[1] - self.energy_regeneration * self.dt * (
             energy_function * self.acceleration_energy_use * np.sqrt(network_output[:3].dot(
-                network_output[:3])) - self.attack_energy_use * member.stats[2] / (self.max_damage * self.dt)), 0, 1)
+                network_output[:3])) + self.attack_energy_use * member.stats[2] / (self.max_damage * self.dt)), 0, 1)
 
     # Determine the agents that have taken damage, and update health and score accordingly
     def update_health(self):
