@@ -30,8 +30,10 @@ class Simulation:
         self.rotation_multiplier = rotation_multiplier                     # Max torque with respect to max acceleration
         self.strafe_multiplier = strafe_multiplier            # Max strafe acceleration with respect to max acceleration
         self.energy_regeneration = energy_regeneration                              # Amount of energy gained per second
-        self.acceleration_energy_use = acceleration_energy_use              # Energy used per second at max acceleration
-        self.attack_energy_use = attack_energy_use                # Energy used per second when attacking at full energy
+        self.acceleration_energy_use = acceleration_energy_use   # Energy used per second at max acceleration wrt energy
+        # regeneration
+        self.attack_energy_use = attack_energy_use     # Energy used per second when attacking at full energy wrt energy
+        # regeneration
         self.attack_range = attack_range                                           # Range at which attacks cause damage
         self.attack_angle = attack_angle                                   # Maximum angle at which attacks cause damage
         self.max_damage = max_damage                                   # Damage per second when attacking at full energy
@@ -51,9 +53,9 @@ class Simulation:
         self.vision_draw_length = vision_draw_length                                            # Length of vision lines
         self.mutation_fraction = mutation_fraction  # The fraction of weights in the network that change each generation
         self.mutation_factor = mutation_factor                    # The maximum amount a weight can change when mutating
-        self.structure_mutation_chance = structure_mutation_chance      # the probability new structure is added to a
+        self.structure_mutation_chance = structure_mutation_chance         # the probability new structure is added to a
         # network each generation
-        self.ratio_add_to_split = ratio_add_to_split        # the ratio between that new structure being an additional
+        self.ratio_add_to_split = ratio_add_to_split          # the ratio between that new structure being an additional
         # connection, to an additional node
 
         self.population_total = sum(population_sizes)
@@ -191,7 +193,7 @@ class Simulation:
 
         member.stats[1] = np.clip(member.stats[1] - self.energy_regeneration * self.dt * (
             energy_function * self.acceleration_energy_use * np.sqrt(network_output[:3].dot(
-                network_output[:3])) - self.attack_energy_use * member.stats[2] / self.max_damage), 0, 1)
+                network_output[:3])) - self.attack_energy_use * member.stats[2] / (self.max_damage * self.dt)), 0, 1)
 
     # Determine the agents that have taken damage, and update health and score accordingly
     def update_health(self):

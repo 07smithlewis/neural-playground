@@ -238,7 +238,7 @@ class Genome:
 class Population:
 
     # The 'distance' between genomes required to consider them different species
-    max_species_diversity = 0.2
+    max_species_diversity = 0.1
 
     def __init__(self, basic_structure, size, mutation_fraction=0.1, mutation_factor=0.1, structure_mutation_chance=0.2,
                  ratio_add_to_split=0.6):
