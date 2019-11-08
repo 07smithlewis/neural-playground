@@ -317,10 +317,8 @@ class Population:
             i += j
 
         for i in range(self.size - len(new_members)):
-            new_members.append(self.members[np.random.randint(0, self.size)])
-            Mutate.weight_mutation(new_members[len(new_members) - 1],
-                                   new_members[len(new_members) - 1].connections[0] * 0.5 * (1. + mutation_fraction),
-                                   mutation_factor=mutation_factor)
+            new_members.append(Mutate.reproduce(self.members[np.random.randint(0, self.size)],
+                                                self.members[np.random.randint(0, self.size)]))
 
         # Mutate the weights of the new population
         for member in new_members:

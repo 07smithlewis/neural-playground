@@ -185,6 +185,8 @@ class Simulation:
 
     # Determine the agents that have taken damage, and update health and score accordingly
     def update_health(self):
+
+        attack_object_list = []
         attack_range_squared = np.power(self.attack_range, 2)
         coordinates = np.empty((3, sum(self.population_sizes)), dtype=np.float32)
 
@@ -242,6 +244,10 @@ class Simulation:
                             self.population.members[int(ind)].score += damage * self.took_dmg_from_friend
                             self.population.members[k].score += damage * self.damaged_friend
 
+                            attack_object_list.append(['Line', *np.add(coordinates[1:, k], self.layout[0][0]),
+                                                       *np.add(coordinates[1:, int(ind)], self.layout[0][0]), 1,
+                                                       (200, 0, 0, 255)])
+
                     for ind in unfriendly_coordinates_[0, unfriendly_angle < self.attack_angle]:
                         damage = self.population.members[k].stats[2]
                         self.population.members[int(ind)].stats[0] = np.clip(
@@ -254,11 +260,17 @@ class Simulation:
                         if int(ind) == k:
                             print('{} attacked self'.format(k))
 
+                        attack_object_list.append(['Line', *np.add(coordinates[1:, k], self.layout[0][0]),
+                                                   *np.add(coordinates[1:, int(ind)], self.layout[0][0]), 1,
+                                                   (200, 0, 0, 255)])
+
         for member in self.population.members:
             if member.stats[0] == 0:
                 member.phys = Physics.Phys(displacement=np.concatenate((np.random.random_sample(2) * self.layout[0][1],
                                                                         np.array([np.random.random_sample() * 360]))))
                 member.stats = np.ones(3, dtype=np.float32)
+
+        return attack_object_list
 
     # Create the object lists used by Graphics.py to draw the maximum score over generation graph
     def draw_max_score_history(self, draw_size, draw_location=[0, 0]):
@@ -290,7 +302,7 @@ class Simulation:
                                 draw_location[0] + border[0] + (draw_size[0] - 2 * border[0]) * (i + 1) / (
                                             len(self.max_score_history) - 1),
                                 draw_location[1] + border[1] + (draw_size[1] - 2 * border[1]) * self.max_score_history[
-                                    i + 1] / graph_maximum, 1, (0, 0, 0, 200)])
+                                    i + 1] / graph_maximum, 2, (0, 0, 0, 200)])
 
         return object_list, text_list
 
@@ -404,7 +416,7 @@ class Simulation:
             for j in range(self.population_total):
                 self.population.members[j].phys.vars = phys_out_load[j, :]
 
-            self.update_health()
+            attack_object_list = self.update_health()
 
             # Graphics loop (Run frequency determined by framerate)
             if self.graphics and time.time() - last_frame_time > 1. / self.frame_rate:
@@ -421,7 +433,7 @@ class Simulation:
                 text_object_list[3][3] = 'Num of species: {}'.format(len(self.population.species_structure))
 
                 # Pass current graphics information to the environment object
-                environment.object_lists = [self.object_list, layout_object_list, graph_object_list,
+                environment.object_lists = [self.object_list, attack_object_list, layout_object_list, graph_object_list,
                                             visualiser_object_list[np.argmax(scores)], text_object_list]
 
                 pyglet.clock.tick()
@@ -449,7 +461,7 @@ window_dimensions = [1000, 700]
 team_sizes = [15, 15]
 
 # The time in seconds each generation is simulated for
-run_time = 200
+run_time = 100
 
 # Look at the definition of the Simulation class for a full list of optional arguments
 sim = Simulation(team_sizes, window_dimensions)
