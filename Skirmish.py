@@ -9,12 +9,12 @@ import pickle
 
 
 class Simulation:
-    def __init__(self, population_sizes, window_dimensions, num_photoreceptors=5, visual_acuity=8, velocity_decay=0.2,
-                 dt=0.1, bounds='loop', maximum_acceleration=100., rotation_multiplier=2., strafe_multiplier=0.5,
-                 energy_regeneration=0.01, acceleration_energy_use=2., attack_energy_use=2., attack_range=40,
-                 attack_angle=np.pi / 6., friendly_fire_multiplier=1., show_vision=False, vision_draw_length=100.,
+    def __init__(self, population_sizes, window_dimensions, num_photoreceptors=3, visual_acuity=8, velocity_decay=0.2,
+                 dt=0.1, bounds='loop', maximum_acceleration=200., rotation_multiplier=4., strafe_multiplier=0.5,
+                 energy_regeneration=0.02, acceleration_energy_use=2., attack_energy_use=2., attack_range=50,
+                 attack_angle=np.pi / 8., friendly_fire_multiplier=1., show_vision=False, vision_draw_length=100.,
                  took_dmg_from_friend=-0.5, damaged_friend=-1., took_dmg_from_enemy=-1., damaged_enemy=2., died=-1.,
-                 killed_friend=-1., killed_enemy=2., frame_rate=20, graphics=True, max_score_history=100,
+                 killed_friend=-0.25, killed_enemy=0.5, frame_rate=20, graphics=True, max_score_history=50,
                  max_damage=0.1, mutation_fraction=0.1, mutation_factor=0.1, structure_mutation_chance=0.2,
                  ratio_add_to_split=0.6):
 
@@ -145,7 +145,7 @@ class Simulation:
     # Create the list of objects needed by Graphics.py, to draw the population
     def fill_object_list(self):
 
-        color_dict = {0: (50, 50, 50, 255), 1: (200, 200, 200, 255), 2: (200, 0, 0, 255), 3: (0, 200, 0, 255),
+        color_dict = {0: (50, 50, 50, 255), 1: (200, 200, 200, 255), 2: (100, 100, 0, 255), 3: (0, 200, 0, 255),
                       4: (0, 0, 200, 255), 5: (100, 0, 100, 255), 6: (0, 100, 100, 255)}
 
         for i in range(len(self.population_sizes)):
@@ -217,6 +217,9 @@ class Simulation:
 
                 if self.population.members[k].stats[2] != 0:
 
+                    attack_object_list.append(['Circle', *np.add(coordinates[1:, k], self.layout[0][0]), 4,
+                                               (200, 0, 0, 255)])
+
                     friendly_coordinates_ = np.copy(friendly_coordinates)
                     unfriendly_coordinates_ = np.copy(unfriendly_coordinates)
                     friendly_coordinates_[1:, :] -= coordinates[:, k][1:, None]
@@ -257,7 +260,7 @@ class Simulation:
                             self.population.members[k].score += damage * self.damaged_friend
 
                             attack_object_list.append(['Line', *np.add(coordinates[1:, k], self.layout[0][0]),
-                                                       *np.add(coordinates[1:, int(ind)], self.layout[0][0]), 1,
+                                                       *np.add(coordinates[1:, int(ind)], self.layout[0][0]), 2,
                                                        (200, 0, 0, 255)])
 
                     for ind in unfriendly_coordinates_[0, unfriendly_angle < self.attack_angle]:
@@ -269,11 +272,9 @@ class Simulation:
                             self.population.members[k].score += self.killed_enemy
                         self.population.members[int(ind)].score += damage * self.took_dmg_from_enemy
                         self.population.members[k].score += damage * self.damaged_enemy
-                        if int(ind) == k:
-                            print('{} attacked self'.format(k))
 
                         attack_object_list.append(['Line', *np.add(coordinates[1:, k], self.layout[0][0]),
-                                                   *np.add(coordinates[1:, int(ind)], self.layout[0][0]), 1,
+                                                   *np.add(coordinates[1:, int(ind)], self.layout[0][0]), 2,
                                                    (200, 0, 0, 255)])
 
         for member in self.population.members:
@@ -314,7 +315,7 @@ class Simulation:
                                 draw_location[0] + border[0] + (draw_size[0] - 2 * border[0]) * (i + 1) / (
                                             len(self.max_score_history) - 1),
                                 draw_location[1] + border[1] + (draw_size[1] - 2 * border[1]) * self.max_score_history[
-                                    i + 1] / graph_maximum, 2, (0, 0, 0, 200)])
+                                    i + 1] / graph_maximum, 1, (0, 0, 0, 200)])
 
         return object_list, text_list
 

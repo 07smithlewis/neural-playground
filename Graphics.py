@@ -37,6 +37,7 @@ class Objects:
 
     fob_cords = np.loadtxt('./Fob/Fob.txt')
     bar_cords = np.loadtxt('./Fob/Bars.txt')
+    circle_cords = np.loadtxt('./Circle/Circle.txt')
 
     class Fob:
         @staticmethod   # Sprites are unable to be added to the batch object
@@ -127,6 +128,17 @@ class Objects:
                                       anchor_x='center', anchor_y='center', color=(0, 0, 0, 255))
             label.draw()
 
+    class Circle:
+        @staticmethod
+        def draw(batch, x, y, radius=1, col=(0, 0, 0, 255)):
+
+            cords = Objects.circle_cords * radius
+            cords = (cords + np.array([x, y])[None, :]).flatten()
+
+            num_cords = int(cords.size / 2)
+
+            batch.add(num_cords, GL_TRIANGLES, None, ('v2f', cords.tolist()), ('c4B', col * num_cords))
+
     @staticmethod
     def translate(object_list, batch):
         object_dict = {
@@ -134,7 +146,8 @@ class Objects:
             "Rectangle": Objects.Rectangle,
             "Line": Objects.Line,
             "Text": Objects.Text,
-            "Fob With Vision": Objects.FobWithVision
+            "Fob With Vision": Objects.FobWithVision,
+            "Circle": Objects.Circle
         }
 
         for i in range(len(object_list)):
