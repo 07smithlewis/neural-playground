@@ -187,9 +187,9 @@ class Genome:
                 location1 = node_locations[np.where(self.nodes[1] == self.connections[1][i, 1])[0][0]]
                 location2 = node_locations[np.where(self.nodes[1] == self.connections[1][i, 2])[0][0]]
                 if self.connections[2][i] >= 0:
-                    color = tuple([0, 0, 0, int(np.tanh(self.connections[2][i] * 4 / weight_maximum) * 255)])
+                    color = tuple([0, 0, 0, int(self.connections[2][i] / weight_maximum * 255)])
                 else:
-                    color = tuple([255, 0, 0, int(np.tanh(-self.connections[2][i] * 4 / weight_maximum) * 255)])
+                    color = tuple([255, 0, 0, int(-self.connections[2][i] / weight_maximum * 255)])
 
                 connection_list.append(['Line', *list(np.add(location1, draw_location)),
                                         *list(np.add(location2, draw_location)), 2, color])

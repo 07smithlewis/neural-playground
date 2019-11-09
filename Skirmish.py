@@ -6,6 +6,7 @@ import tensorflow.compat.v1 as tf
 import Graphics
 import time
 import pickle
+import GenAl
 
 
 class Simulation:
@@ -16,7 +17,8 @@ class Simulation:
                  took_dmg_from_friend=-0.5, damaged_friend=-1., took_dmg_from_enemy=-1., damaged_enemy=2., died=-1.,
                  killed_friend=-0.25, killed_enemy=0.5, frame_rate=20, graphics=True, max_score_history=50,
                  max_damage=0.1, mutation_fraction=0.1, mutation_factor=0.1, structure_mutation_chance=0.2,
-                 ratio_add_to_split=0.6):
+                 ratio_add_to_split=0.6, vision_range=200, use_neat=True, hidden_layers=[10, 10, 10, 10],
+                 draw_network=True):
 
         self.population_sizes = population_sizes
         self.window_dimensions = window_dimensions
@@ -57,6 +59,10 @@ class Simulation:
         # network each generation
         self.ratio_add_to_split = ratio_add_to_split          # the ratio between that new structure being an additional
         # connection, to an additional node
+        self.vision_range = vision_range                     # The maximum range at which the agent can see other agents
+        self.use_neat = use_neat         # True: Use NEAT,  False: Use genetic evolution of feed forward network weights
+        self.hidden_layers = hidden_layers                      # Lengths of hidden layers if using feed forward network
+        self.draw_network = draw_network                              # True: Show the network,  False: Hide the network
 
         self.population_total = sum(population_sizes)
         self.velocity_decay_dt = (1 - (1 - velocity_decay) * dt)
@@ -78,11 +84,16 @@ class Simulation:
         outputs = 3 + 1                             # [Acceleration, Agent Actions]
         self.basic_structure = [inputs, outputs]
 
-        self.population = Neat.Population(
-            self.basic_structure, sum(self.population_sizes), mutation_fraction=self.mutation_fraction,
-            mutation_factor=self.mutation_factor, structure_mutation_chance=self.structure_mutation_chance,
-            ratio_add_to_split=self.ratio_add_to_split)
-        self.history = Neat.History(sum(self.basic_structure) - 1)
+        if self.use_neat:
+            self.population = Neat.Population(
+                self.basic_structure, sum(self.population_sizes), mutation_fraction=self.mutation_fraction,
+                mutation_factor=self.mutation_factor, structure_mutation_chance=self.structure_mutation_chance,
+                ratio_add_to_split=self.ratio_add_to_split)
+            self.history = Neat.History(sum(self.basic_structure) - 1)
+        else:
+            self.population = GenAl.Population([self.basic_structure[0], *self.hidden_layers, self.basic_structure[1]],
+                                               sum(self.population_sizes), mutation_fraction=self.mutation_fraction,
+                                               mutation_factor=self.mutation_factor)
 
         self.add_extra_member_info()
 
@@ -101,6 +112,7 @@ class Simulation:
     # Calculate the network input of each member of the population
     def calculate_input(self):
 
+        vision_range_squared = np.power(self.vision_range, 2)
         coordinates = np.empty((2, sum(self.population_sizes)), dtype=np.float32)
 
         for i in range(self.population_total):
@@ -124,6 +136,16 @@ class Simulation:
                                                   friendly_coordinates - coordinates[:, k][:, None])
                 unfriendly_coordinates_ = np.matmul(self.population.members[k].rotation_mat,
                                                     unfriendly_coordinates - coordinates[:, k][:, None])
+
+                friendly_coordinates_ = friendly_coordinates_[
+                                        :, np.add(np.power(friendly_coordinates_[0, :], 2),
+                                                  np.power(friendly_coordinates_[1, :],
+                                                           2)) < vision_range_squared]
+
+                unfriendly_coordinates_ = unfriendly_coordinates_[
+                                          :, np.add(np.power(unfriendly_coordinates_[0, :], 2),
+                                                    np.power(unfriendly_coordinates_[1, :],
+                                                             2)) < vision_range_squared]
 
                 friendly_photoreceptors = np.angle(1j * friendly_coordinates_[0, :] + friendly_coordinates_[1, :])
                 unfriendly_photoreceptors = np.angle(1j * unfriendly_coordinates_[0, :] + unfriendly_coordinates_[1, :])
@@ -360,7 +382,7 @@ class Simulation:
                     ]
                     if not object_lists:
                         environment.window.dispatch_events()
-                    environment.on_draw(clear=False)
+                    environment.on_draw()
                     environment.window.flip()
                     environment.object_lists = object_lists
 
@@ -376,13 +398,12 @@ class Simulation:
         phys_session = tf.Session(graph=physics_graph)
 
         # Graphics description for network visualisation
+
         visualiser_object_list = [self.population.members[i].visualiser(self.layout[1][1], self.layout[1][0])
                                   for i in range(self.population_total)]
 
         # Graphics description for layout separation borders
         lines = []
-        x = [self.layout[1][1][0], self.window_dimensions[1]]
-        layout_object_list = [['Rectangle', x[0] / 2., x[1] / 2., 0, x, (255, 255, 255, 255)]]
         x = np.array([[0, 0], [0, 1], [1, 1], [1, 0]])
         for ly in self.layout:
             points = []
@@ -390,6 +411,8 @@ class Simulation:
                 points.append(np.add(ly[0], np.multiply(x[i, :], ly[1])).tolist())
             for i in range(4):
                 lines.append(points[i] + points[(i + 1) % 4])
+        layout_object_list = [['Line', *np.add(lines[0], [-13, 0, -13, 0]).tolist(),
+                               26, (255, 255, 255, 255)]]
         for line in lines:
             layout_object_list.append(['Line', *line, 8])
 
@@ -405,8 +428,18 @@ class Simulation:
         graph_object_list, graph_text = self.draw_max_score_history(self.layout[2][1], self.layout[2][0])
         text_object_list.extend(graph_text)
 
+        # Graphics description for clearing the parts of the screen that update
+        clear = [[['Rectangle', *np.array(self.window_dimensions) * 0.5, 0, self.window_dimensions,
+                   (255, 255, 255, 255)]],
+                 [['Rectangle', *np.add(np.array(self.layout[0][1]) * 0.5, self.layout[0][0]), 0,
+                   self.layout[0][1], (255, 255, 255, 255)],
+                  ['Rectangle', *np.add(np.array(self.layout[3][1]) * 0.5, self.layout[3][0]), 0,
+                   self.layout[3][1], (255, 255, 255, 255)]
+                  ]]
+
         scores = np.empty(self.population_total, dtype=np.float32)
         last_frame_time = time.time()
+        highest_scoring_agent = np.array([-1, -1])
 
         # Main simulation loop
         for i in range(int(run_time / self.dt)):
@@ -433,6 +466,7 @@ class Simulation:
 
             # Graphics loop (Run frequency determined by framerate)
             if self.graphics and time.time() - last_frame_time > 1. / self.frame_rate:
+
                 last_frame_time = time.time()
 
                 self.update_object_list(self.layout[0][0])
@@ -446,8 +480,18 @@ class Simulation:
                 text_object_list[3][3] = 'Num of species: {}'.format(len(self.population.species_structure))
 
                 # Pass current graphics information to the environment object
-                environment.object_lists = [self.object_list, attack_object_list, layout_object_list, graph_object_list,
-                                            visualiser_object_list[np.argmax(scores)], text_object_list]
+                if np.argmax(scores) != highest_scoring_agent[0] and self.draw_network:
+                    print(1)
+                    highest_scoring_agent = np.roll(highest_scoring_agent, -1)
+                    highest_scoring_agent[-1] = np.argmax(scores)
+
+                    environment.object_lists = [clear[0], self.object_list, attack_object_list, layout_object_list,
+                                                graph_object_list, visualiser_object_list[np.argmax(scores)],
+                                                text_object_list]
+                else:
+                    print(2)
+                    environment.object_lists = [clear[1], self.object_list, attack_object_list, layout_object_list,
+                                                graph_object_list, text_object_list]
 
                 pyglet.clock.tick()
 
@@ -474,10 +518,10 @@ window_dimensions_ = [1000, 700]
 team_sizes = [15, 15]
 
 # The time in seconds each generation is simulated for
-run_time_ = 120
+run_time_ = 180
 
 # Look at the definition of the Simulation class for a full list of optional arguments
-sim = Simulation(team_sizes, window_dimensions_)
+sim = Simulation(team_sizes, window_dimensions_, use_neat=False)
 
 # Uncomment this line if you want to continue from your last session, rather than starting a new one
 # sim = pickle.load(open("save.p", "rb"))
@@ -486,10 +530,13 @@ sim = Simulation(team_sizes, window_dimensions_)
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ #
 # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== # =====----===== #
 
-env = Graphics.Environment(window_dimensions_)
+env = Graphics.Environment(window_dimensions_, clear=False)
 
 while True:
     pickle.dump(sim, open("save.p", "wb"))
-    sim.population.next_generation(sim.history)
+    if sim.use_neat:
+        sim.population.next_generation(sim.history)
+    else:
+        sim.population.next_generation()
     sim.add_extra_member_info()
     sim.run(run_time_, env)

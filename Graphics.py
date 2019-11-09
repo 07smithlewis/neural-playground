@@ -12,14 +12,15 @@ class Environment:
     # object_list entries take te form of a list of the object name, and its draw parameters e.g.
     # ['Fob', (250, 250), 0, 'black', 3]
 
-    def __init__(self, window_dimensions):
+    def __init__(self, window_dimensions, clear=True):
         self.object_lists = []
         self.window_dimensions = window_dimensions
         self.window = pyglet.window.Window(width=self.window_dimensions[0], height=self.window_dimensions[1])
         self.on_draw = self.window.event(self.on_draw)
+        self.clear = clear
 
-    def on_draw(self, clear=True):
-        if clear:
+    def on_draw(self):
+        if self.clear:
             glClearColor(1, 1, 1, 1)
             self.window.clear()
         batch = pyglet.graphics.Batch()
