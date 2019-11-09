@@ -481,7 +481,6 @@ class Simulation:
 
                 # Pass current graphics information to the environment object
                 if np.argmax(scores) != highest_scoring_agent[0] and self.draw_network:
-                    print(1)
                     highest_scoring_agent = np.roll(highest_scoring_agent, -1)
                     highest_scoring_agent[-1] = np.argmax(scores)
 
@@ -489,7 +488,6 @@ class Simulation:
                                                 graph_object_list, visualiser_object_list[np.argmax(scores)],
                                                 text_object_list]
                 else:
-                    print(2)
                     environment.object_lists = [clear[1], self.object_list, attack_object_list, layout_object_list,
                                                 graph_object_list, text_object_list]
 
