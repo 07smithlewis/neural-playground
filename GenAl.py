@@ -65,7 +65,7 @@ class Genome:
 
         for i in range(len(genome1.connections)):
             genome3.connections[i] += np.multiply(np.random.choice(
-                2, p=[fitness1/(fitness1 + fitness2), fitness2/(fitness1 + fitness2)],
+                2, p=[fitness1/(fitness1 + fitness2), 1 - fitness1/(fitness1 + fitness2)],
                 size=genome1.connections[i].shape),
                 genome2.connections[i] - genome1.connections[i])
 

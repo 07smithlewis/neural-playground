@@ -439,7 +439,7 @@ class Simulation:
 
         scores = np.empty(self.population_total, dtype=np.float32)
         last_frame_time = time.time()
-        highest_scoring_agent = np.array([-1, -1])
+        highest_scoring_agent = np.array([-1, -1, -1])
 
         # Main simulation loop
         for i in range(int(run_time / self.dt)):
