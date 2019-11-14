@@ -4,5 +4,7 @@ An agent based, machine learning, team fighting simulation implementing a NEAT a
 You can try running this experiment by running Skirmish.py
 (Experiment setup can be found at the bottom of that script)
 
+See the Wiki for more info https://github.com/07smithlewis/neural-playground/wiki#skirmishpy
+
 # Screenshots
 <img src="https://i.imgur.com/PSu7R2o.png" alt="Screencap"/>
